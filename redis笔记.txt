@@ -1,0 +1,146 @@
+nosql(非关系型数据库):常见:redis,mongodb,hbase hadoop
+	特点:
+	1.不支持sql语法
+	2.存储结构都是key-value格式
+
+Redis:key-value数据库,由键值对实现存储需求,实现缓存,队列等功能
+	特点:
+	1.支持持久化,可以将内存的数据的保存到磁盘,重启也可以再次进行加载使用
+	2.不仅仅支持简单的key-value类型,还支持list,set,zset,hash等数据结构的存储
+	3.支持数据备份,
+	性能极高
+	
+	用途:
+	1.用于缓存,
+	2.特定情况下(社交应用)用于替代传统的数据库
+	3.实现session共享,购物车
+	
+redis-conf参数配置使用:
+	bind:启动id地址
+	port:默认端口
+	daemonize: yes | no
+		(默认yes)如果以守护进程运行,则不会在命令行中阻塞,类似于服务
+		非守护进程运行,则当前终端会被阻塞
+	dbfilename:数据文件
+	dir:数据文件的存储位置
+	logfile:日志文件
+	database:16数据库默认有16个
+	slaveof:主从复制,类似于双机热备
+
+redis使用:
+String:
+	添加数据:
+		设置单个键值对:set key value
+		设置多个键值对:mset key1 value1 key2 value2
+		设置具有时效性的键值对:setex key second value
+		对值进行添加:append key value (本来存在的key则会将两个合并在一起,然后返回合并后的长度,本来尚未存在的数据,则新添加一个数据)
+	获取数据:
+		获取单个值:get key
+		获取多个值:mget key1,key2
+		查看所有的键:keys *
+		查看以a开头的键:keys "a*"
+		查看某个键是否存在:exists key(存在返回1,不存在返回0)
+		查看键的类型:type key
+	删除数据:
+		清空所有键值:flushall
+		删除键:del key1 key2(可以是不存在的key,不会报错,只会返回删除的键个数)
+		为已经存在的键值对设有效期:expire key second
+		查看键的有效期:ttl key(不存在返回-2,存在返回-1,在倒计时时候,会返回时间)
+Hash:(即一个键对应一个列表)(得到的是hkey:{key1:value,key2:value2})
+	添加数据:
+		添加数据(已存在hkey则新添加字段,已存在字段则会覆写,未存在则新建):hset hkey key1 value1 key2 value2
+	获取数据:
+		获取单个数据:hget hkey key1
+		获取多个数据:hmget hkey key1 key2
+		查看hkey含有的key值:hkeys hkey
+	删除数据:
+		删除单个数据:hdel hkey key1,key2
+
+list:
+	添加数据:
+		左侧插入数据:lpush key value1 value2 value3    顺序为:[value3,value2,value1],先插入在最后,依次
+		右侧插入数据:rpush key value1 value2 value3   顺序为:[value1,value2,value3],先插入在最前
+		指定位置插入数据: linsert key  before/after oldvalue newvalue
+		设置指定位置元素的值:lset key index value(下标是和python的一致,由0开始)
+	获取数据:
+		获取指定下标数据:lrange key startindex  stopindex(-1表最后)
+
+	删除数据:
+		删除指定数据:lrem key count value (count值>0从左端开始,<0从右端开始,=0则查找所有元素)
+
+set:(有序不重复)
+	添加数据:
+		添加多个元素:sadd key value1 value2 value3
+	
+	获取数据:
+		获取集合所有元素:smembers key
+	
+	删除数据:
+		srem key value(不存在的值也不会报错,返回0,存在的话会删除并返回1)
+
+zset(含有权重值的):
+	添加数据:
+		添加元素,(score为权重,越大的越后面):zadd key score1 value1 score2 value2
+	
+	获取数据:
+		根据起止index获取元素:zrange key start stop
+		根据权重间来获取指定元素: zrangebyscore key startScroe stopScore (两个边界值都包含的) 
+		获取zset的某一value的权重:zscroe key value
+	
+	删除数据:
+		删除集合中指定元素:zrem key value
+		删除集合中权重在指定范围的元素:zremrangebyscroe key min max
+
+
+主从搭建:
+一般在/home目录下 下载redis源码:wget http://download.redis.io/releases/redis-3.0.0.tar.gz(版本号自定义)
+然后对目录解压: tar xzf redis-3.0.0.tar.gz 获得redis-3.0.0文件
+将文件转移到/usr/local/redis下: sudo cp /home/redis-3.0.0 /usr/local/redis
+进入/usr/local/redis下,进行make编译,因为redis是c编写的,需要进行编译后才可以运行,
+执行make test检查文件是否完全正确,再进行make install执行安装
+
+此时已经进行安装完毕,然后对/usr/local/redis/redis.conf(此为主)进行简单配置
+	修改daemonize 为yes,可以不会在前台阻塞,后台也可以继续运行
+	修改logfile 为/home/redis-master.log,用于记录日志
+	因为本次集群是在同以主机运行,不需要和外网连接,所以bind不需要修改,如果有需求可以自行修改
+	
+再对redis.conf进行复制生成slave.conf :cp /usr/local/redis/redis.conf  /usr/local/redis/slave.conf
+	再对复制好的文件进行一下修改,
+	修改port 为6380(随便设置都行),不要和主相同就好
+	再修改pidfile 最后那个数字修改为和port相同的数字
+	修改logfile 为/home/redis-slave.log
+	最后最重要的一点,修改slaveof为127.0.0.1 6379(两个的含义是主的ip和端口)
+文件修改好后,执行ps aux |grep redis (只有下面一条进程就对了,不然kill -9 进程号)
+root      149798  0.0  0.0  12108   968 pts/0    S+   20:26   0:00 grep --color=auto redis
+
+然后依次执行 redis-server /usr/local/redis/redis.conf,
+	    redis-server /usr/local/redis/slave.conf
+
+此时	执行ps aux |grep redis ,含有三条则说明,主从集群成功
+root      149701  0.1  0.2  55992  9232 ?        Ssl  19:51   0:02 redis-server 127.0.0.1:6379
+root      149731  0.1  0.2  55992  8468 ?        Ssl  19:54   0:02 redis-server 127.0.0.1:6380
+root      149798  0.0  0.0  12108   968 pts/0    S+   20:26   0:00 grep --color=auto redis
+
+查看主从关系:redis-cli -h 127.0.0.1 info Replication
+进入主客户端:redis-cli -h 127.0.0.1 -p 6379
+新开一个窗口,然后打开从客户端:redis-cli -h 127.0.0.1 -p 6380
+主:具有读写功能,从只具有读功能
+
+
+
+集群搭建:(集群配置需要最起码三个主,三个从)
+SRC16算法
+
+
+
+
+
+
+
+
+
+
+
+
+
+
